@@ -3,6 +3,7 @@ package us.coastalhacking.corvus.annotations.ui.e3;
 import org.eclipse.core.commands.AbstractHandler;
 import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.JavaModelException;
@@ -39,25 +40,18 @@ public abstract class AbstractAnnotationHandler extends AbstractHandler {
 	protected abstract void doExecute(MarkerDTO dto);
 	
 	private MarkerDTO adapt(ITextSelection textSelection, ExecutionEvent event) {
-		MarkerDTO dto = new MarkerDTO();
+		MarkerDTO dto = createMarkerDTO(textSelection, event);
 
-		// Obtain start / end characters and line for the DTO
 		// TODO: test
-		if (textSelection != null) {
-			MarkerAdapter.adaptTextSelection(textSelection, dto);
-		}
-
-		// Try to obtain resource and text
-		// TODO: test
-		IJavaElement javaElement = null;
+		// TODO: abstract out as OSGi DS
 		try {
-			javaElement = getJavaElement(textSelection, event);
+			IJavaElement javaElement = getJavaElement(textSelection, event);
+			if (javaElement != null) {
+				MarkerAdapter.adaptJavaElement(javaElement, dto);
+			}
 		} catch (JavaModelException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
-		if (javaElement != null) {
-			MarkerAdapter.adaptJavaElement(javaElement, dto);
 		}
 
 		return dto;
@@ -70,8 +64,11 @@ public abstract class AbstractAnnotationHandler extends AbstractHandler {
 		if (activeEditor instanceof ITextEditor) {
 			final ITextEditor editor = (ITextEditor) activeEditor;
 			IJavaElement javaElement = JavaUI.getEditorInputJavaElement(editor.getEditorInput());
+			if (javaElement == null) {
+				return null;
+			}
+
 			switch (javaElement.getElementType()) {
-			
 			case (IJavaElement.COMPILATION_UNIT):
 			    return ((ICompilationUnit)javaElement).getElementAt(textSelection.getOffset());
 
@@ -81,5 +78,20 @@ public abstract class AbstractAnnotationHandler extends AbstractHandler {
 		}
 		return null;
 
+	}
+
+	private MarkerDTO createMarkerDTO(ITextSelection textSelection, ExecutionEvent event) {
+		MarkerDTO results = new MarkerDTO();
+		results.text = textSelection.getText();
+
+		final IEditorPart activeEditor = HandlerUtil.getActiveEditor(event);
+		if (activeEditor instanceof ITextEditor) {
+			final ITextEditor editor = (ITextEditor) activeEditor;
+			results.resource = editor.getAdapter(IResource.class);
+		}
+
+		MarkerAdapter.adaptTextSelection(textSelection, results);
+
+		return results;
 	}
 }
